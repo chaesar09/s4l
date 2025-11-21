@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>S4 League - Style Over Substance, Substance Over All</title>
+    <!-- Inline SVG favicon to avoid 404 for /favicon.ico -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='55' font-size='50' text-anchor='middle' fill='%2300ffff' font-family='Arial, Helvetica, sans-serif'%3E%3Cs%3E%3C/text%3E%3C/text%3E%3C/svg%3E">
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -552,7 +554,7 @@
                         <i class="fas fa-chevron-down text-xs"></i>
                     </button>
                     <div id="dropdown" class="dropdown-menu">
-                        <a href="#" class="block px-4 py-3 hover:bg-gray-800 transition">
+                        <a href="./profile.html" class="block px-4 py-3 hover:bg-gray-800 transition">
                             <i class="fas fa-user mr-2"></i> Profil
                         </a>
                         <a href="#" onclick="openChangePasswordModal()" class="block px-4 py-3 hover:bg-gray-800 transition">
@@ -574,6 +576,8 @@
             </div>
         </div>
     </nav>
+
+    <!-- Debug overlay removed -->
 
     <!-- Mobile Menu -->
     <div id="mobileMenuOverlay" class="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
@@ -801,28 +805,28 @@
                     </div>
                 </div>
                 
-                <!-- Clan of the Month -->
-                <div class="social-card">
+                <!-- Clan of the Month (populated from API) -->
+                <div id="clanOfMonth" class="social-card">
                     <h3 class="text-xl font-bold mb-6">Clan of the Month</h3>
                     <div class="text-center mb-6">
                         <div class="w-32 h-32 mx-auto mb-4 rounded-full overflow-hidden border-4 border-cyan-500">
-                            <img src="https://images.unsplash.com/photo-1554080351-a76ca4bcf889?auto=format&fit=crop&w=800" alt="Clan Logo" class="w-full h-full object-cover">
+                            <img id="clanLogoImg" src="https://images.unsplash.com/photo-1554080351-a76ca4bcf889?auto=format&fit=crop&w=800" alt="Clan Logo" class="w-full h-full object-cover">
                         </div>
-                        <h4 class="text-2xl font-bold neon-cyan">Neon Strikers</h4>
-                        <p class="text-gray-400 mt-2">Rank: #1</p>
+                        <h4 id="clanName" class="text-2xl font-bold neon-cyan">-</h4>
+                        <p id="clanRank" class="text-gray-400 mt-2">Rank: -</p>
                     </div>
-                    <p class="text-gray-300 mb-6">Clan dengan win rate tertinggi bulan ini! Dikenal dengan strategi cepat dan koordinasi tim yang sempurna.</p>
+                    <p id="clanDesc" class="text-gray-300 mb-6">Memuat data clan...</p>
                     <div class="grid grid-cols-2 gap-4 mb-6">
                         <div class="bg-gray-800 p-3 rounded text-center">
-                            <p class="text-2xl font-bold text-cyan-400">98%</p>
+                            <p id="clanWinRate" class="text-2xl font-bold text-cyan-400">-</p>
                             <p class="text-sm text-gray-400">Win Rate</p>
                         </div>
                         <div class="bg-gray-800 p-3 rounded text-center">
-                            <p class="text-2xl font-bold text-purple-400">24</p>
+                            <p id="clanMembers" class="text-2xl font-bold text-purple-400">-</p>
                             <p class="text-sm text-gray-400">Members</p>
                         </div>
                     </div>
-                    <a href="komunitas.html" class="btn-secondary w-full inline-block text-center">Lihat Profil Clan</a>
+                    <a id="clanProfileLink" href="komunitas.html" class="btn-secondary w-full inline-block text-center">Lihat Profil Clan</a>
                 </div>
             </div>
         </div>
@@ -976,8 +980,8 @@
             <div class="p-6">
                 <form id="loginForm" onsubmit="handleLogin(event)">
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">Email atau Username</label>
-                        <input type="text" id="loginEmail" class="form-input" required>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="loginUsername" class="form-input" required>
                     </div>
                     <div class="mb-6">
                         <label class="block text-sm font-medium mb-2">Password</label>
@@ -1018,10 +1022,6 @@
                         <input type="text" id="registerUsername" class="form-input" required>
                     </div>
                     <div class="mb-4">
-                        <label class="block text-sm font-medium mb-2">Email</label>
-                        <input type="email" id="registerEmail" class="form-input" required>
-                    </div>
-                    <div class="mb-4">
                         <label class="block text-sm font-medium mb-2">Password</label>
                         <input type="password" id="registerPassword" class="form-input" required>
                     </div>
@@ -1050,21 +1050,126 @@
     <!-- JavaScript -->
     <script>
         // API Configuration
-        const API_BASE_URL = 'http://localhost/s4league/api'; // Ganti dengan URL API Anda
-
-        // Check if user is logged in
-        window.onload = function() {
-            const token = localStorage.getItem('s4_token');
-            const user = localStorage.getItem('s4_user');
-            if (token && user) {
-                showUserMenu(JSON.parse(user));
+        // Compute API base dynamically so site works at root or in a subfolder.
+        // Falls back to './api' on error.
+        const API_BASE_URL = (function(){
+            try {
+                const origin = window.location.origin;
+                const path = window.location.pathname || '/';
+                // Remove filename (if any) to get directory
+                const dir = path.endsWith('/') ? path.slice(0, -1) : path;
+                const trimmed = dir.replace(/\/[^\/]*$/, '');
+                // If trimmed is empty string, we are at site root
+                return origin + (trimmed === '' ? '' : trimmed) + '/api';
+            } catch (e) {
+                return './api';
             }
-            
+        })();
+
+        // Small helper to decode JWT payload (no verification)
+        function decodeJwtPayload(token) {
+            if (!token) return null;
+            try {
+                const parts = token.split('.');
+                if (parts.length < 2) return null;
+                const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                const json = decodeURIComponent(atob(payload).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                return JSON.parse(json);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Cookie helpers: used as a fallback persistence if localStorage is cleared
+        function setCookie(name, value, days) {
+            try {
+                let expires = '';
+                if (typeof days === 'number') {
+                    const date = new Date();
+                    date.setTime(date.getTime() + (days*24*60*60*1000));
+                    expires = '; expires=' + date.toUTCString();
+                }
+                document.cookie = name + '=' + encodeURIComponent(value || '') + expires + '; path=/';
+            } catch (e) {}
+        }
+
+        function getCookie(name) {
+            try {
+                const v = document.cookie.match('(^|;)\s*' + name + '\s*=\s*([^;]+)');
+                return v ? decodeURIComponent(v.pop()) : null;
+            } catch (e) { return null; }
+        }
+
+        function clearCookie(name) {
+            setCookie(name, '', -1);
+        }
+
+        // Check if user is logged in and hydrate user data (keeps login after refresh)
+        window.onload = async function() {
+            let token = localStorage.getItem('s4_token');
+            const userRaw = localStorage.getItem('s4_user');
+            let user = null;
+
+            // If localStorage token missing but cookie exists (fallback), restore it
+            if (!token) {
+                const ck = getCookie('s4_token');
+                if (ck) {
+                    try { localStorage.setItem('s4_token', ck); } catch (e) {}
+                    token = ck;
+                }
+            }
+
+            if (userRaw) {
+                try {
+                    user = JSON.parse(userRaw);
+                } catch (e) {
+                    console.warn('Failed to parse stored user JSON:', e);
+                    user = null;
+                    localStorage.removeItem('s4_user');
+                }
+            }
+
+            // If token exists but we don't have a full user object, try to fetch it in background
+            if (token) {
+                if (user && user.username) {
+                    // We have a user — show menu immediately
+                    showUserMenu(user);
+                } else {
+                    // Try to fetch authoritative user info, but don't block UI
+                    fetchUserFromApi(token).then(fetched => {
+                        if (fetched && fetched.username) {
+                            try { localStorage.setItem('s4_user', JSON.stringify(fetched)); } catch (e) {}
+                            showUserMenu(fetched);
+                        }
+                    }).catch(()=>{});
+
+                    // If we have any partial info in localStorage, or can decode token, show optimistic UI
+                    let optimistic = user;
+                    if (!optimistic) {
+                        const payload = decodeJwtPayload(token);
+                        if (payload) {
+                            optimistic = { username: payload.username || payload.name || payload.sub || 'Akun' };
+                        }
+                    }
+                    if (optimistic && optimistic.username) {
+                        showUserMenu(optimistic);
+                    }
+                }
+            } else {
+                // No token — ensure storage is clean
+                localStorage.removeItem('s4_user');
+                localStorage.removeItem('s4_token');
+            }
+
             // Set active nav link based on current page
             setActiveNavLink();
-            
+
             // Initialize video
             initializeVideo();
+            // Populate Clan of the Month (real-time)
+            if (typeof fetchAndRenderClanOfMonth === 'function') fetchAndRenderClanOfMonth();
         };
 
         // Initialize video controls
@@ -1140,6 +1245,7 @@
         // Navbar scroll effect
         window.addEventListener('scroll', function() {
             const navbar = document.querySelector('.navbar');
+            if (!navbar) return;
             if (window.scrollY > 50) {
                 navbar.classList.add('scrolled');
             } else {
@@ -1192,7 +1298,7 @@
         async function handleLogin(event) {
             event.preventDefault();
             
-            const email = document.getElementById('loginEmail').value;
+            const username = document.getElementById('loginUsername').value;
             const password = document.getElementById('loginPassword').value;
             const loginBtn = document.getElementById('loginBtn');
             const loginBtnText = document.getElementById('loginBtnText');
@@ -1209,20 +1315,64 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ username, password })
                 });
-                
-                const data = await response.json();
-                
-                if (response.ok && data.success) {
-                    // Save token and user data
-                    localStorage.setItem('s4_token', data.token);
-                    localStorage.setItem('s4_user', JSON.stringify(data.user));
-                    showUserMenu(data.user);
+
+                // Log basic network info
+                console.debug('Login request done:', { url: `${API_BASE_URL}/login.php`, status: response.status, ok: response.ok });
+
+                // Try to parse JSON safely; if parsing fails, capture raw text for debugging
+                let data = null;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    const rawText = await response.text();
+                    console.warn('Login: response is not valid JSON', { jsonErr, rawText });
+                    showNotification('Login gagal: response server tidak valid.', 'error');
+                }
+
+                // If server returned OK and a success payload, proceed
+                if (response.ok && data && data.success) {
+                    // Support two server response shapes:
+                    // 1) { success, message, token, user }
+                    // 2) { success, message, data: { token, user } }
+                    const payload = data.data && (typeof data.data === 'object') ? data.data : data;
+
+                    // Ensure token exists before storing
+                    if (payload.token) {
+                        localStorage.setItem('s4_token', payload.token);
+                        // Persist token as cookie too as a fallback for page reloads
+                        try { setCookie('s4_token', payload.token, 365); } catch (e) {}
+                    } else {
+                        console.warn('Login: response missing token', data);
+                    }
+
+                    let normalized = normalizeUser(payload.user);
+                    if (!normalized || !normalized.username) {
+                        // Try fetching user data via API
+                        const tokenToUse = payload.token || localStorage.getItem('s4_token');
+                        normalized = await fetchUserFromApi(tokenToUse);
+                    }
+                    if (normalized) {
+                        localStorage.setItem('s4_user', JSON.stringify(normalized));
+                    }
+                    // Force show menu using stored value (fallback to parsing storage)
+                    try {
+                        const stored = normalized || JSON.parse(localStorage.getItem('s4_user'));
+                        console.log('Login: storing user, showing menu for', stored);
+                        if (stored && stored.username) showUserMenu(stored);
+                        if (typeof updateDebugOverlay === 'function') updateDebugOverlay();
+                    } catch (e) {
+                        console.warn('Login: could not show user menu', e);
+                    }
                     closeModal('login');
-                    showNotification('Login berhasil! Selamat datang kembali, ' + data.user.username + '!', 'success');
+                    const displayName = normalized && normalized.username ? normalized.username : '';
+                    showNotification('Login berhasil! Selamat datang kembali, ' + displayName + '!', 'success');
                 } else {
-                    showNotification(data.message || 'Login gagal. Silakan coba lagi.', 'error');
+                    // When login fails, surface server message and full payload in console for diagnosis
+                    console.warn('Login failed', { status: response.status, ok: response.ok, body: data });
+                    const msg = (data && data.message) ? data.message : 'Login gagal. Silakan coba lagi.';
+                    showNotification(msg, 'error');
                 }
             } catch (error) {
                 console.error('Login error:', error);
@@ -1240,7 +1390,6 @@
             event.preventDefault();
             
             const username = document.getElementById('registerUsername').value;
-            const email = document.getElementById('registerEmail').value;
             const password = document.getElementById('registerPassword').value;
             const confirmPassword = document.getElementById('registerConfirmPassword').value;
             const registerBtn = document.getElementById('registerBtn');
@@ -1264,18 +1413,39 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ username, email, password })
+                    body: JSON.stringify({ username, password })
                 });
                 
                 const data = await response.json();
                 
-                if (response.ok && data.success) {
-                    // Save token and user data
-                    localStorage.setItem('s4_token', data.token);
-                    localStorage.setItem('s4_user', JSON.stringify(data.user));
-                    showUserMenu(data.user);
+                if (response.ok && data && data.success) {
+                    // Support server response shapes where token/user may be nested in `data`
+                    const payload = data.data && (typeof data.data === 'object') ? data.data : data;
+
+                    // Save token and normalized user data (or fetch if missing)
+                    if (payload.token) {
+                        localStorage.setItem('s4_token', payload.token);
+                        try { setCookie('s4_token', payload.token, 365); } catch (e) {}
+                    }
+
+                    let normalized = normalizeUser(payload.user);
+                    if (!normalized || !normalized.username) {
+                        normalized = await fetchUserFromApi(payload.token || localStorage.getItem('s4_token'));
+                    }
+                    if (normalized) {
+                        localStorage.setItem('s4_user', JSON.stringify(normalized));
+                    }
+                    try {
+                        const stored = normalized || JSON.parse(localStorage.getItem('s4_user'));
+                        console.log('Register: storing user, showing menu for', stored);
+                        if (stored && stored.username) showUserMenu(stored);
+                        if (typeof updateDebugOverlay === 'function') updateDebugOverlay();
+                    } catch (e) {
+                        console.warn('Register: could not show user menu', e);
+                    }
                     closeModal('register');
-                    showNotification('Registrasi berhasil! Selamat datang di S4 League, ' + data.user.username + '!', 'success');
+                    const displayName = normalized && normalized.username ? normalized.username : '';
+                    showNotification('Registrasi berhasil! Selamat datang di S4 League, ' + displayName + '!', 'success');
                 } else {
                     showNotification(data.message || 'Registrasi gagal. Silakan coba lagi.', 'error');
                 }
@@ -1292,10 +1462,15 @@
 
         // Show user menu
         function showUserMenu(user) {
-            document.getElementById('auth-buttons').classList.add('hidden');
-            document.getElementById('user-menu').classList.remove('hidden');
-            document.getElementById('username').textContent = user.username;
-            document.getElementById('user-avatar').src = user.avatar || 'https://randomuser.me/api/portraits/men/32.jpg';
+            if (!user || !user.username) return;
+            const authButtons = document.getElementById('auth-buttons');
+            const userMenuEl = document.getElementById('user-menu');
+            const usernameEl = document.getElementById('username');
+            const avatarEl = document.getElementById('user-avatar');
+            if (authButtons) authButtons.classList.add('hidden');
+            if (userMenuEl) userMenuEl.classList.remove('hidden');
+            if (usernameEl) usernameEl.textContent = user.username;
+            if (avatarEl) avatarEl.src = user.avatar || 'https://randomuser.me/api/portraits/men/32.jpg';
         }
 
         // Toggle dropdown
@@ -1314,14 +1489,16 @@
                 }
             }).catch(error => console.error('Logout error:', error));
             
-            // Clear local storage
+            // Clear local storage and cookie
             localStorage.removeItem('s4_token');
             localStorage.removeItem('s4_user');
+            try { clearCookie('s4_token'); } catch (e) {}
             
             // Update UI
             document.getElementById('auth-buttons').classList.remove('hidden');
             document.getElementById('user-menu').classList.add('hidden');
             showNotification('Anda telah keluar dari akun.', 'info');
+            if (typeof updateDebugOverlay === 'function') updateDebugOverlay();
         }
 
         // Open change password modal
@@ -1448,12 +1625,93 @@
             }, 3000);
         }
 
+        // Normalize user object keys coming from the server (handles PHP capitalized keys)
+        function normalizeUser(raw) {
+            if (!raw) return null;
+            return {
+                id: raw.Id ?? raw.id ?? null,
+                username: raw.username ?? raw.Username ?? raw.Nickname ?? '',
+                avatar: raw.avatar ?? raw.Avatar ?? null
+            };
+        }
+
+        // Fetch user data from API using token (fallback if login/register didn't return user)
+        async function fetchUserFromApi(token) {
+            if (!token) return null;
+            try {
+                const resp = await fetch(`${API_BASE_URL}/get_user_data.php`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                if (!resp.ok) return null;
+                const j = await resp.json();
+                if (j && j.success && j.user) {
+                    return normalizeUser(j.user);
+                }
+                return null;
+            } catch (e) {
+                console.warn('fetchUserFromApi error', e);
+                return null;
+            }
+        }
+
+        // Fetch clans and render the "Clan of the Month" area
+        async function fetchAndRenderClanOfMonth() {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/get_clans.php`);
+                if (!resp.ok) return;
+                const j = await resp.json();
+                const clans = (j && j.data) ? j.data : (Array.isArray(j) ? j : []);
+                if (!Array.isArray(clans) || clans.length === 0) return;
+
+                // Choose the clan with the highest MemberCount (fallback to first)
+                let best = clans[0];
+                try {
+                    best = clans.reduce((a,b)=>{
+                        const ma = parseInt(a.MemberCount||a.membercount||0,10)||0;
+                        const mb = parseInt(b.MemberCount||b.membercount||0,10)||0;
+                        return (mb>ma)?b:a;
+                    }, clans[0]);
+                } catch(e) { best = clans[0]; }
+
+                const name = best.Name || best.ClanName || best.Title || best.name || ('Clan ' + (best.Id||best.id||''));
+                const logo = best.Logo || best.Image || best.Avatar || best.logo || 'https://images.unsplash.com/photo-1554080351-a76ca4bcf889?auto=format&fit=crop&w=800';
+                const members = best.MemberCount || best.membercount || 0;
+                const desc = best.Description || best.Desc || best.description || 'Clan unggulan bulan ini.';
+
+                const clanLogoImg = document.getElementById('clanLogoImg');
+                const clanName = document.getElementById('clanName');
+                const clanRank = document.getElementById('clanRank');
+                const clanDesc = document.getElementById('clanDesc');
+                const clanWinRate = document.getElementById('clanWinRate');
+                const clanMembers = document.getElementById('clanMembers');
+                const clanProfileLink = document.getElementById('clanProfileLink');
+
+                if (clanLogoImg) clanLogoImg.src = logo;
+                if (clanName) clanName.textContent = name;
+                if (clanRank) clanRank.textContent = 'Rank: #1';
+                if (clanDesc) clanDesc.textContent = desc;
+                if (clanWinRate) clanWinRate.textContent = (best.WinRate || best.winrate || '-') ;
+                if (clanMembers) clanMembers.textContent = members;
+                if (clanProfileLink) {
+                    const id = best.Id || best.id || '';
+                    clanProfileLink.href = 'komunitas.html' + (id ? ('?clan=' + encodeURIComponent(id)) : '');
+                }
+            } catch (e) {
+                console.warn('fetchAndRenderClanOfMonth error', e);
+            }
+        }
+
+        // Debug overlay removed — no-op placeholder kept for compatibility
+
         // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
             const dropdown = document.getElementById('dropdown');
             const userMenu = document.querySelector('.user-dropdown');
             
-            if (!userMenu.contains(event.target)) {
+            if (userMenu && dropdown && !userMenu.contains(event.target)) {
                 dropdown.classList.remove('show');
             }
         });
@@ -1461,8 +1719,17 @@
         // Smooth scrolling for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
+                const href = this.getAttribute('href');
+                // Ignore bare hashes which are not valid selectors (href="#")
+                if (!href || href === '#') return;
                 e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
+                let target = null;
+                try {
+                    target = document.querySelector(href);
+                } catch (err) {
+                    // Invalid selector — ignore
+                    return;
+                }
                 if (target) {
                     target.scrollIntoView({
                         behavior: 'smooth',

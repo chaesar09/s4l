@@ -1,5 +1,4 @@
 <?php
-require_once 'config.php';
 
 class JWT {
     public static function encode($payload, $key, $alg = 'HS256') {
